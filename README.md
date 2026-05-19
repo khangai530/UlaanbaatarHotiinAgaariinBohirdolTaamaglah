@@ -14,15 +14,6 @@
 
 Өгөгдлийг **Open‑Meteo API**-аас 2019–2024 оны хугацаанд цагийн нарийвчлалтайгаар татаж, цэвэрлэсэн.
 
-## Репозиторын бүтэц
-
-```
-.
-├── report.qmd                     # Quarto-н бүрэн тайлан (HTML/PDF)
-├── presentation.qmd               # Quarto revealjs танилцуулга
-├── README.md                      # Энэ файл
-└── (нэмэлт өгөгдөл / зураг)
-```
 
 ## Хэрхэн ажиллуулах
 
@@ -39,7 +30,7 @@ quarto render report.qmd --to html
 
 Танилцуулга (revealjs):
 ```bash
-quarto render presentation.qmd --to revealjs
+quarto render slides.qmd --to revealjs
 ```
 
 Гарсан `report.html` болон `slides.html` файлуудыг хөтөч дээр нээн үзнэ үү.
