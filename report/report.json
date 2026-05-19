@@ -1,0 +1,143 @@
+{
+  "metadata": {
+    "title": "Улаанбаатар хотын агаарын бохирдлын таамаглал",
+    "subtitle": "Магадлал Статистикын Төслийн Ажил",
+    "authors": ["Д.Аахангай", "Б.Өсөхбаяр", "А.Баясгалан"],
+    "date": "2026 он",
+    "language": "mn",
+    "source": "PDF report"
+  },
+  "abstract": "Энэхүү төслийн ажлаар Улаанбаатар хотын PM2.5 агаарын бохирдлыг цаг агаарын үзүүлэлтүүдийн тусламжтайгаар машин сургалтын аргаар таамаглах загвар боловсруулав. Open-Meteo API ашиглан 2019–2024 оны өгөгдөл цуглуулж, шүүн боловсруулсан. Гурван загварыг харьцуулав: Linear Regression, Bayesian Ridge, Decision Tree. Decision Tree загвар R2=0.535 гүйцэтгэлтэй хамгийн сайн ажиллалаа. Температур буурах тусам PM2.5 эрс нэмэгдэх хандлага илэрч, халаалтын улиралтай холбоотой. Салхины хурд –0.47 корреляцтай.",
+  "data": {
+    "source": "Open-Meteo Weather API and Air Quality API",
+    "coordinates": "47.92°N, 106.91°E",
+    "time_range": "2019-01-01 to 2024-12-31",
+    "raw_records": 43824,
+    "cleaned_records": 31056,
+    "deleted_records": 12768,
+    "deleted_percent": 29.1,
+    "train_size": 24844,
+    "test_size": 6212,
+    "features": [
+      {"name": "temperature_2m", "unit": "°C", "description": "2м өндөрт хэмжсэн агаарын температур"},
+      {"name": "relative_humidity_2m", "unit": "%", "description": "Харьцангуй чийгшил"},
+      {"name": "wind_speed_10m", "unit": "km/h", "description": "10м өндөрт хэмжсэн салхины хурд"},
+      {"name": "precipitation", "unit": "mm", "description": "Хур тунадасны хэмжээ"},
+      {"name": "surface_pressure", "unit": "hPa", "description": "Гадаргын атмосферийн даралт"},
+      {"name": "month", "unit": "1-12", "description": "Сарын тоо — улирлын хэв маяг"},
+      {"name": "hour", "unit": "0-23", "description": "Цаг — өдрийн хэлбэлзэл"},
+      {"name": "heating_season", "unit": "0/1", "description": "Халаалтын улирал: 10-4-р сар = 1"},
+      {"name": "temp_x_wind", "unit": "°C·km/h", "description": "Температур × салхины хурд (нийлмэл нөлөө)"}
+    ]
+  },
+  "correlations": {
+    "temperature_2m": -0.64,
+    "wind_speed_10m": -0.47,
+    "temp_x_wind": -0.38,
+    "heating_season": 0.55,
+    "surface_pressure": 0.12,
+    "relative_humidity_2m": 0.08,
+    "precipitation": -0.06,
+    "month": -0.02,
+    "hour": -0.01
+  },
+  "models": [
+    {
+      "name": "Linear Regression",
+      "type": "regression",
+      "equation": "ŷ = β₀ + β₁x₁ + ... + βₖxₖ",
+      "evaluation": {
+        "MAE": "~7.xx",
+        "RMSE": "~10.xx",
+        "R2": 0.517
+      },
+      "notes": "Бага болон дундаж PM2.5 утгыг харьцангуй сайн таамагласан, өндөр утгад дутуу тооцоолсон, сөрөг таамаглал гарсан."
+    },
+    {
+      "name": "Bayesian Ridge",
+      "type": "bayesian regression",
+      "prior": "Gaussian",
+      "evaluation": {
+        "MAE": "~7.xx",
+        "RMSE": "~10.xx",
+        "R2": 0.5171
+      },
+      "notes": "Linear Regression-тэй бараг ижил, давуу тал нь 95% тодорхойгүйн интервал гаргах чадвар."
+    },
+    {
+      "name": "Decision Tree",
+      "type": "tree-based regression",
+      "hyperparameters": {
+        "max_depth": 6,
+        "min_samples_leaf": 50,
+        "criterion": "MSE"
+      },
+      "evaluation": {
+        "MAE": "хамгийн бага",
+        "RMSE": "хамгийн бага",
+        "R2": 0.535
+      },
+      "feature_importance": {
+        "temperature_2m": 0.534,
+        "wind_speed_10m": 0.189,
+        "temp_x_wind": 0.112,
+        "surface_pressure": 0.065,
+        "hour": 0.043,
+        "month": 0.028,
+        "relative_humidity_2m": 0.017,
+        "precipitation": 0.008,
+        "heating_season": 0.004
+      },
+      "notes": "Шугаман бус хамаарлыг илрүүлсэн, сөрөг таамаглалгүй, R² хамгийн өндөр."
+    }
+  ],
+  "steps": [
+    "1. Өгөгдөл цуглуулах (Open-Meteo API, 2019-2024, 43,824 бичлэг)",
+    "2. Өгөгдөл цэвэрлэх (NaN, давхардсан, сөрөг PM2.5 устгах → 31,056 бичлэг)",
+    "3. Feature Engineering (heating_season, temp_x_wind)",
+    "4. Train/Test хуваах (80/20, random_state=42)",
+    "5. Загвар сургах (LinearRegression, BayesianRidge, DecisionTreeRegressor)",
+    "6. Үнэлгээ (MAE, RMSE, R², confusion-like plots, feature importance, uncertainty intervals)"
+  ],
+  "results": {
+    "best_model": "Decision Tree",
+    "best_R2": 0.535,
+    "interpretation": "Цаг агаарын хүчин зүйлс PM2.5-ийн хэлбэлзлийн 53.5%-ийг тайлбарлаж байна. Үлдсэн 46.5% нь бусад хүчин зүйлээс (замын хөдөлгөөн, үйлдвэр, гэр хорооллын шаталт) хамаарна.",
+    "key_finding": "Температур хамгийн чухал (53.4%), учир нь хүйтрэх тусам нүүрс/мод шаталт нэмэгдэж, temperature inversion үзэгдэл бохирдлыг хуримтлуулдаг."
+  },
+  "limitations": [
+    "Цаг агаарыг мэдвэл PM2.5-ийг тооцдог — шууд урт хугацааны таамаглал гаргах боломжгүй, 24–72 цагийн урьдчилсан мэдээгээр ажиллана.",
+    "R²=0.535 → 46.5% нь бусад хүчин зүйлээс хамаарна (хөдөлгөөн, үйлдвэр, гэр хороолол).",
+    "Нэг цэгийн координат дээр суурилсан — хотын өөр хэсгүүдэд ялгаатай байж болно.",
+    "Цагийн нарийвчлалтай боловч микро-нөхцлүүдийг бүрэн барьж чадахгүй."
+  ],
+  "references": [
+    "Zippenfenig, P. (2023). Open-Meteo.com weather API (Version 1) [Software]. Zenodo. https://doi.org/10.5281/zenodo.7970649",
+    "Open-Meteo. (2024). Air quality API: Historical air quality data [Dataset]. https://open-meteo.com/en/docs/air-quality-api",
+    "Pedregosa, F., et al. (2011). Scikit-learn: Machine learning in Python. JMLR, 12, 2825–2830.",
+    "The pandas development team. (2024). pandas-dev/pandas: Pandas (Version 2.x). Zenodo.",
+    "Harris, C. R., et al. (2020). Array programming with NumPy. Nature, 585, 357–362.",
+    "Hunter, J. D. (2007). Matplotlib: A 2D graphics environment. Computing in Science & Engineering, 9(3), 90–95."
+  ],
+  "team_contributions": {
+    "Д.Аахангай": "Тайлан, танилцуулга хийсэн",
+    "Б.Өсөхбаяр": "Санааг гаргаж, датагаа бэлдэж хийгдэх ерөнхий загвар гаргасан",
+    "А.Баясгалан": "Python дээр модел сургасан"
+  },
+  "code_snippets": {
+    "data_collection": "import openmeteo_requests\nparams_weather = {'latitude':47.92,'longitude':106.91,'start_date':'2019-01-01','end_date':'2024-12-31','hourly':['temperature_2m','relative_humidity_2m','wind_speed_10m','precipitation','surface_pressure']}\nparams_air = {... 'hourly':['pm2_5']}\ndf = weather_df.merge(air_df, on='datetime')",
+    "cleaning": "df = df.dropna().drop_duplicates(subset='datetime')\ndf = df[df['pm2_5'] >= 0]",
+    "feature_engineering": "df['heating_season'] = df['month'].apply(lambda m: 1 if m>=10 or m<=4 else 0)\ndf['temp_x_wind'] = df['temperature_2m'] * df['wind_speed_10m']",
+    "train_test_split": "X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)",
+    "model_training": "lr = LinearRegression(); lr.fit(X_train_sc, y_train)\nbr = BayesianRidge(max_iter=500); br.fit(X_train_sc, y_train)\ndt = DecisionTreeRegressor(max_depth=6, min_samples_leaf=50); dt.fit(X_train, y_train)",
+    "evaluation": "def evaluate(name, y_true, y_pred):\n    mae = mean_absolute_error(y_true, y_pred)\n    rmse = np.sqrt(mean_squared_error(y_true, y_pred))\n    r2 = r2_score(y_true, y_pred)\n    print(f'[{name}] MAE={mae:.4f} RMSE={rmse:.4f} R2={r2:.4f}')"
+  },
+  "figures": [
+    "Figure 1: Linear Regression — Predicted vs Actual scatter plot (R²=0.517)",
+    "Figure 2: Bayesian Ridge — Predicted vs Actual scatter plot (R²=0.517)",
+    "Figure 3: Decision Tree — Predicted vs Actual scatter plot (R²=0.535)",
+    "Figure 4: Загваруудын R² харьцуулалтын баганан график",
+    "Figure 5: Decision Tree-ийн Feature Importance баганан график",
+    "Figure 6: Bayesian Ridge загварын таамаглал ба 95% тодорхойгүйн интервал"
+  ]
+}
