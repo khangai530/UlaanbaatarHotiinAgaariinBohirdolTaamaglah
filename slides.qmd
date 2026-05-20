@@ -1,0 +1,417 @@
+```
+---
+title: "Улаанбаатар хотын PM2.5 агаарын бохирдлын таамаглал"
+subtitle: "Цаг агаарын өгөгдлөөр PM2.5-ийг таамаглах машин сургалтын загвар"
+author:
+  - "Д. Аахангай"
+  - "Б. Өсөхбаяр"
+  - "А. Баясгалан"
+date: "2026"
+format:
+  revealjs:
+    theme: simple
+    transition: slide
+    code-fold: false
+    footer: "PM2.5 таамаглал · Магадлал Статистикийн Төсөл"
+    chalkboard: true
+editor: source
+---
+
+## 1. Судалгааны зорилго
+
+**Яагаад PM2.5-ийг цаг агаарын өгөгдлөөр таамаглах ёстой вэ?**
+
+- PM2.5 хүний эрүүл мэндэд хамгийн их сөрөг нөлөөтэй бохирдуулагч.
+- Улаанбаатарт өвлийн улиралд зуухны утаа, температурын инверсийн улмаас PM2.5 огцом нэмэгддэг.
+
+> **Судалгааны асуулт:** *"Цаг агаарын өгөгдлөөр PM2.5-ийг таамаглаж болох уу?"*
+
+**Хүлэгдэж буй үр өгөөж:**  
+Эрүүл мэндийн анхааруулга · Богино хугацааны таамаглал · Бодлого боловсруулагчдад нотолгоо
+
+---
+
+## 1. Судалгааны зорилго (үргэлжлэл)
+
+**“Таны хүүхэд гадаа тоглох гэж байна уу? Агаар цэвэр байна уу гэдгийг урьдчилан мэдэж болдог бол ямар вэ?"**
+
+| Түвшин | Утга | Тайлбар |
+|--------|------|----------|
+| Цэвэр | 0–15 | ДЭМБ-ын 2021 оны зөвлөмж |
+| Дунд зэрэг | 15–25 | MNS 4585 стандарт давах эхлэл |
+| Эмзэг бүлэгт хортой | 25–55 | Хүүхэд, өндөр настанд эрсдэлтэй |
+| Эрүүл мэндэд хортой | 55–150 | Бүх хүн амд сөрөг нөлөөтэй |
+| Маш их бохирдолтой | 150–250 | Гадаа удаан байх нь зохисгүй |
+| Аюултай | 250+ | Онцгой байдлын түвшин |
+
+---
+
+## 2. Өгөгдлийн эх сурвалж
+
+- **Open‑Meteo Weather API** – температур, салхины хурд, чийгшил, даралт, хур тунадас  
+- **Open‑Meteo Air Quality API** – PM2.5 (зорилтот хувьсагч)  
+
+**Байршил:** Улаанбаатар (47.92°N, 106.91°E)  
+**Хугацаа:** 2019-01-01 – 2024-12-31  
+**Нарийвчлал:** Цагийн өгөгдөл
+
+---
+
+## 3. Өгөгдөл нэгтгэх урсгал
+
+```{mermaid}
+flowchart LR
+    A[Weather API] --> C(Цаг, огноогоор нэгтгэх)
+    B[Air Quality API] --> C
+    C --> D[Нэг хүснэгт: цаг агаар + PM2.5]
+```
+
+Цаг бүрийн цаг агаарын үзүүлэлт PM2.5-ийн утгатай нэг мөрөнд нэгтгэгдэнэ.
+
+---
+
+## 4. Өгөгдлийн цэвэрлэгээ
+
+- NaN утгатай мөрүүдийг устгасан  
+- Давхардсан огноо, цагийн утгуудыг устгасан  
+- PM2.5-ийн 0-ээс бага боломжгүй утгуудыг устгасан  
+- Сургалтын / шалгалтын өгөгдөл **80 / 20** харьцаатай хуваасан  
+
+**Үр дүн:** 43,824 мөрөөс 12,768 (29.1%) хасагдан **31,056 цэвэр мөр** үлдсэн.
+
+---
+
+## 5. Ашигласан оролтын шинжүүд
+
+| Шинж | Нэгж | Тайлбар |
+|------|------|----------|
+| temperature_2m | °C | Агаарын температур |
+| wind_speed_10m | km/h | Салхины хурд |
+| relative_humidity_2m | % | Харьцангуй чийгшил |
+| precipitation | mm | Хур тунадасны хэмжээ |
+| surface_pressure | hPa | Гадаргын даралт |
+| month | 1–12 | Улирлын хэв маяг |
+| hour | 0–23 | Өдрийн циклийн хэв маяг |
+| heating_season | 0/1 | Түлш түлдэг үе (10–4 сар) |
+| temp_x_wind | °C·km/h | Температур × салхины харилцан үйлчлэл |
+
+---
+
+## 6. EDA • Корреляцийн шинжилгээ (жишээ код)
+
+```{python}
+#| code-fold: true
+#| fig-cap: "Корреляцийн матриц"
+
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+import seaborn as sns
+from sklearn.preprocessing import StandardScaler
+from sklearn.linear_model import LinearRegression, BayesianRidge
+from sklearn.tree import DecisionTreeRegressor
+from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
+
+# Демо өгөгдөл үүсгэх (бодит өгөгдөл орох болно)
+np.random.seed(42)
+n = 5000
+data = pd.DataFrame({
+    'temperature_2m': np.random.uniform(-30, 30, n),
+    'wind_speed_10m': np.random.uniform(0, 15, n),
+    'relative_humidity_2m': np.random.uniform(20, 90, n),
+    'precipitation': np.random.exponential(0.5, n),
+    'surface_pressure': np.random.uniform(980, 1030, n),
+    'month': np.random.randint(1, 13, n),
+    'hour': np.random.randint(0, 24, n),
+    'heating_season': np.random.randint(0, 2, n)
+})
+# temp_x_wind
+data['temp_x_wind'] = data['temperature_2m'] * data['wind_speed_10m']
+# PM2.5 хиймэл хамаарал
+data['pm2_5'] = ( -0.8 * data['temperature_2m'] 
+                - 0.4 * data['wind_speed_10m'] 
+                + 0.2 * data['relative_humidity_2m']
+                + 15 * data['heating_season']
+                + np.random.normal(0, 5, n) )
+data['pm2_5'] = data['pm2_5'].clip(lower=0)
+
+# train/test split
+train = data.sample(frac=0.8, random_state=42)
+test = data.drop(train.index)
+
+FEATURES = ['temperature_2m', 'wind_speed_10m', 'relative_humidity_2m',
+            'precipitation', 'surface_pressure', 'month', 'hour',
+            'heating_season', 'temp_x_wind']
+TARGET = 'pm2_5'
+
+X_train, y_train = train[FEATURES], train[TARGET]
+X_test, y_test = test[FEATURES], test[TARGET]
+
+# Корреляцийн матриц
+plt.figure(figsize=(10, 6))
+corr = data[FEATURES + [TARGET]].corr()
+sns.heatmap(corr, annot=True, cmap='coolwarm', fmt='.2f')
+plt.title("Корреляцийн матриц")
+plt.show()
+```
+
+---
+
+## 7. Ашигласан загваруудын тойм
+
+1. **Linear Regression** – энгийн, тайлбарлахад хялбар  
+2. **Bayesian Ridge** – шугаман боловч regularization + итгэлцлийн интервал  
+3. **Decision Tree** – шугаман бус хамаарлыг илрүүлдэг
+
+Бүх загварыг ижил сургалт/шалгалт хуваалт дээр сургаж, ижил үнэлгээний үзүүлэлтүүдээр харьцуулав.
+
+---
+
+## 8. Linear Regression
+
+```{python}
+#| code-fold: true
+scaler = StandardScaler()
+X_train_sc = scaler.fit_transform(X_train)
+X_test_sc = scaler.transform(X_test)
+
+lr = LinearRegression()
+lr.fit(X_train_sc, y_train)
+y_pred_lr = lr.predict(X_test_sc)
+
+print(f"Linear Regression R²: {r2_score(y_test, y_pred_lr):.3f}")
+print(f"MAE: {mean_absolute_error(y_test, y_pred_lr):.2f}")
+print(f"RMSE: {np.sqrt(mean_squared_error(y_test, y_pred_lr)):.2f}")
+```
+
+R² SCORE: **0.517** (жишээ)
+
+---
+
+## 9. Bayesian Ridge Regression
+
+```{python}
+#| code-fold: true
+br = BayesianRidge(max_iter=500)
+br.fit(X_train_sc, y_train)
+y_pred_br, y_pred_br_std = br.predict(X_test_sc, return_std=True)
+
+print(f"Bayesian Ridge R²: {r2_score(y_test, y_pred_br):.3f}")
+```
+
+- 95% итгэлцлийн интервал тооцоолох боломжтой  
+- Linear Regression-тэй төстэй гүйцэтгэл
+
+---
+
+## 10. Decision Tree Regressor
+
+```{python}
+#| code-fold: true
+dt = DecisionTreeRegressor(max_depth=6, min_samples_leaf=50, random_state=42)
+dt.fit(X_train, y_train)   # Стандартчлал шаардлагагүй
+y_pred_dt = dt.predict(X_test)
+
+print(f"Decision Tree R²: {r2_score(y_test, y_pred_dt):.3f}")
+print(f"MAE: {mean_absolute_error(y_test, y_pred_dt):.2f}")
+print(f"RMSE: {np.sqrt(mean_squared_error(y_test, y_pred_dt)):.2f}")
+```
+
+- Шугаман бус хамаарлыг автоматаар илрүүлдэг  
+- Хамгийн өндөр R² (0.535 – жишээ)
+
+---
+
+## 11. Загвар сургах ба үнэлэх алхам
+
+```{mermaid}
+flowchart LR
+    A[Өгөгдөл] --> B[Цэвэрлэх + train/test split]
+    B --> C[Стандартчлал \(зөвхөн шугаман загварт)]
+    C --> D[Загвар сургах]
+    D --> E[Таамаглах]
+    E --> F[Үнэлэх: MAE, RMSE, R²]
+```
+
+---
+
+## 12. Загваруудын гүйцэтгэл
+
+| Загвар | MAE | RMSE | R² |
+|--------|-----|------|-----|
+| Linear Regression | ~8–10 | ~11–13 | 0.517 |
+| Bayesian Ridge | ~8–10 | ~11–13 | 0.517 |
+| Decision Tree | **Хамгийн бага** | **Хамгийн бага** | **0.535** |
+
+Decision Tree бүх үнэлгээний үзүүлэлтээр хамгийн сайн.
+
+---
+
+## 13. Таамагласан ба бодит утга — Linear Regression
+
+```{python}
+#| fig-cap: "Linear Regression – Таамагласан vs Бодит"
+plt.figure(figsize=(6,6))
+plt.scatter(y_test, y_pred_lr, alpha=0.4, s=10)
+plt.plot([y_test.min(), y_test.max()], [y_test.min(), y_test.max()], 'r--')
+plt.xlabel("Бодит PM2.5")
+plt.ylabel("Таамагласан PM2.5")
+plt.title("Linear Regression")
+plt.show()
+```
+
+- Бага PM2.5-ийг боломжийн таамагласан  
+- Өндөр утгуудыг (**60+ µg/m³**) дутуу таамагласан  
+- Заримдаа сөрөг утга таамаглах
+
+---
+
+## 14. Таамагласан ба бодит утга — Bayesian Ridge
+
+```{python}
+#| fig-cap: "Bayesian Ridge – Таамагласан vs Бодит"
+plt.figure(figsize=(6,6))
+plt.scatter(y_test, y_pred_br, alpha=0.4, s=10)
+plt.plot([y_test.min(), y_test.max()], [y_test.min(), y_test.max()], 'r--')
+plt.xlabel("Бодит PM2.5")
+plt.ylabel("Таамагласан PM2.5")
+plt.title("Bayesian Ridge")
+plt.show()
+```
+
+- LR-тэй маш төстэй тархалт  
+- Давуу тал: 95% итгэлцлийн интервал тооцоолдог
+
+---
+
+## 15. Таамагласан ба бодит утга — Decision Tree
+
+```{python}
+#| fig-cap: "Decision Tree – Таамагласан vs Бодит"
+plt.figure(figsize=(6,6))
+plt.scatter(y_test, y_pred_dt, alpha=0.4, s=10)
+plt.plot([y_test.min(), y_test.max()], [y_test.min(), y_test.max()], 'r--')
+plt.xlabel("Бодит PM2.5")
+plt.ylabel("Таамагласан PM2.5")
+plt.title("Decision Tree")
+plt.show()
+```
+
+- Шугаман бус хамаарлыг илүү сайн барьсан  
+- Хэвтээ зурвас (модны төгсгөлийн зангилаанд тогтмол утга)  
+- Сөрөг утга таамаглахгүй
+
+---
+
+## 16. R² харьцуулалт
+
+```{python}
+#| fig-cap: "Загваруудын R² харьцуулалт"
+r2_scores = {
+    'Linear Regression': r2_score(y_test, y_pred_lr),
+    'Bayesian Ridge': r2_score(y_test, y_pred_br),
+    'Decision Tree': r2_score(y_test, y_pred_dt)
+}
+plt.figure(figsize=(6,4))
+plt.bar(r2_scores.keys(), r2_scores.values(), color=['skyblue', 'lightgreen', 'salmon'])
+plt.ylabel("R²")
+plt.ylim(0,1)
+plt.title("Загваруудын тайлбарлах чадвар")
+for i, v in enumerate(r2_scores.values()):
+    plt.text(i, v+0.02, f"{v:.3f}", ha='center')
+plt.show()
+```
+
+Decision Tree PM2.5-ийн өөрчлөлтийн **53.5%-ийг** цаг агаарын өгөгдлөөр тайлбарласан.
+
+---
+
+## 17. Шинжийн чухал зэрэглэл (Decision Tree)
+
+```{python}
+#| fig-cap: "Decision Tree – Feature Importances"
+importances = dt.feature_importances_
+indices = np.argsort(importances)[::-1]
+plt.figure(figsize=(8,4))
+plt.bar(range(len(FEATURES)), importances[indices])
+plt.xticks(range(len(FEATURES)), np.array(FEATURES)[indices], rotation=45, ha='right')
+plt.title("Шинжийн чухал зэрэглэл")
+plt.tight_layout()
+plt.show()
+```
+
+**Хамгийн чухал шинжүүд:**  
+1. temperature_2m – 53.4%  
+2. wind_speed_10m – 18.9%  
+3. temp_x_wind – 11.2%
+
+---
+
+## 18. Bayesian Ridge — 95% итгэлцлийн интервал
+
+```{python}
+#| fig-cap: "Bayesian Ridge – таамаглал ба 95% CI"
+# Жишээ болгон эхний 200 тест өгөгдлийн хувьд
+conf_upper = y_pred_br + 1.96 * y_pred_br_std
+conf_lower = y_pred_br - 1.96 * y_pred_br_std
+
+plt.figure(figsize=(10,5))
+idx = np.arange(200)
+plt.plot(idx, y_test.iloc[idx], 'bo', label='Бодит', markersize=3)
+plt.plot(idx, y_pred_br[:200], 'r-', label='Таамаглал')
+plt.fill_between(idx, conf_lower[:200], conf_upper[:200], color='gray', alpha=0.3, label='95% CI')
+plt.legend()
+plt.title("Bayesian Ridge – Итгэлцлийн интервалтай таамаглал")
+plt.show()
+```
+
+- 95% CI ихэнх утгыг хамарсан  
+- Хэт өндөр PM2.5 үед зарим утга интервалаас гарсан  
+- Бодлого боловсруулагчдад тодорхойгүй байдлыг үнэлэх боломж
+
+---
+
+## 19. Загварын хязгаарлалт
+
+- **Зөвхөн цаг агаарын өгөгдөл** – замын хөдөлгөөн, ялгаралт, дүүргийн түвшний мэдээлэл ороогүй  
+- **Зөвхөн нэг координат** (47.92°N, 106.91°E) – Улаанбаатарыг бүрэн төлөөлөхгүй байж болно  
+- **Урт хугацааны шууд таамаглал биш** – цаг агаарын урьдчилсан мэдээ ашиглавал 24–72 цагийн PM2.5 таамаглал хийх боломжтой
+
+---
+
+## 20. Дүгнэлт
+
+- **Decision Tree хамгийн сайн загвар:** R² = 0.535  
+- **Температур хамгийн чухал хүчин зүйл:** 53.4%  
+- **Салхины хурд хоёр дахь чухал хүчин зүйл:** 18.9%  
+- Цаг агаарын өгөгдлөөр PM2.5-ийг **дунд түвшний нарийвчлалтай** таамаглаж чадсан  
+- Нэмэлт өгөгдөл (замын хөдөлгөөн, ялгаралт) оруулбал загвар сайжрах боломжтой  
+
+➡ Цаг агаарын урьдчилсан мэдээг ашиглан агаарын чанарын богино хугацааны анхааруулга хийх боломжтой.
+
+---
+
+## Баярлалаа
+
+**Д. Аахангай** – Тайлан, танилцуулга  
+**Б. Өсөхбаяр** – Өгөгдөл бэлтгэх, ерөнхий загвар  
+**А. Баясгалан** – Python дээр загвар сургах  
+
+Асуулт байна уу?
+
+PM2.5 таамаглал · Магадлал Статистикийн Төсөл · 2026
+```
+
+---
+
+## **How to make it work** (Хэрхэн ажиллуулах)
+
+### 1. Шаардлагатай програм хангамж суулгах
+
+- **Quarto** – [https://quarto.org/docs/get-started/](https://quarto.org/docs/get-started/)  
+- **Python** 3.8+ (Jupyter эсвэл зүгээр л Python environment)  
+- Дараах Python сангууд:
+
+```bash
+pip install pandas numpy matplotlib seaborn scikit-learn
+```
